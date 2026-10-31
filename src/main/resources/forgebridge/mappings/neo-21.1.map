@@ -1,0 +1,41 @@
+# ---------------------------------------------------------------------------
+# ForgeBridge extension mappings
+# ---------------------------------------------------------------------------
+# Loaded at runtime from (in order): the jar, config/forgebridge/mappings/*.map
+# Format (whitespace separated, '#' starts a comment):
+#
+#   class  <old/internal/Name>            <new/internal/Name>
+#   field  <owner>  <name>  <desc|*>      <newName>
+#   method <owner>  <name>  <desc|*>      <newName>
+#
+# These entries are applied *in addition to* the built-in 1.21.1 Forge ->
+# NeoForge 21.1 table (see dev.forgebridge.remap.BuiltinMappings).
+# ---------------------------------------------------------------------------
+
+# --- Forge API that was renamed rather than relocated -----------------------
+class net/minecraftforge/common/ForgeConfigSpec                     net/neoforged/neoforge/common/ModConfigSpec
+class net/minecraftforge/common/ForgeConfigSpec$Builder             net/neoforged/neoforge/common/ModConfigSpec$Builder
+class net/minecraftforge/common/ForgeConfigSpec$ConfigValue         net/neoforged/neoforge/common/ModConfigSpec$ConfigValue
+
+# --- 1.21.1 API surface that simply moved package ---------------------------
+class net/minecraftforge/common/MinecraftForge                      net/neoforged/neoforge/common/NeoForge
+class net/minecraftforge/common/ForgeMod                            net/neoforged/neoforge/common/NeoForgeMod
+
+# --- Registry plumbing ------------------------------------------------------
+class net/minecraftforge/registries/ForgeRegistries                 net/minecraft/core/registries/BuiltInRegistries
+class net/minecraftforge/registries/IForgeRegistry                  net/neoforged/neoforge/registries/IForgeRegistry
+
+# ForgeRegistries keeps the same field names for a handful of registries but
+# uppercases/renames the rest. '*' desc means "any field of that name".
+field net/minecraft/core/registries/BuiltInRegistries ITEMS    * ITEM
+field net/minecraft/core/registries/BuiltInRegistries BLOCKS   * BLOCK
+field net/minecraft/core/registries/BuiltInRegistries ENTITIES * ENTITY_TYPE
+field net/minecraft/core/registries/BuiltInRegistries SOUND_EVENTS * SOUND_EVENT
+field net/minecraft/core/registries/BuiltInRegistries BIOMES   * BIOME
+field net/minecraft/core/registries/BuiltInRegistries EFFECTS  * MOB_EFFECT
+field net/minecraft/core/registries/BuiltInRegistries ENCHANTMENTS * ENCHANTMENT
+field net/minecraft/core/registries/BuiltInRegistries POTIONS  * POTION
+field net/minecraft/core/registries/BuiltInRegistries PARTICLES * PARTICLE_TYPE
+field net/minecraft/core/registries/BuiltInRegistries CREATIVE_MODE_TABS * CREATIVE_MODE_TAB
+field net/minecraft/core/registries/BuiltInRegistries RECIPES  * RECIPE_TYPE
+field net/minecraft/core/registries/BuiltInRegistries FLUIDS   * FLUID

@@ -1,0 +1,28 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.settings/
+.classpath
+.project
+bin/
+out/
+
+# Runs and generated game data
+run/
+logs/
+repo/
+
+# Offline harness scratch output
+build/offline/run/
+*.class
+
+# OS noise
+.DS_Store
+Thumbs.db
