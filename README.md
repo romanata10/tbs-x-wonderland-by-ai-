@@ -31,6 +31,16 @@ the translated bytecode links against. It is two things in one jar:
                                         LegacyDispatcher, placeholders for removed APIs
 ```
 
+## Download
+
+Prebuilt jar: **[`dist/forgebridge-1.0.0.jar`](dist/forgebridge-1.0.0.jar)** (168 KB, 113 entries,
+`sha256 6e7f1df5efb377bdfb3bb3f999f0274c49bd784b74b071e1e4f0e27acddf4d8d`) — see the
+[v1.0.0 release](https://github.com/romanata10/tbs-x-wonderland-by-ai-/releases/tag/v1.0.0) and
+[`dist/README.md`](dist/README.md) for provenance. It is built by the offline harness, has never
+run inside a real NeoForge installation, and is published as a pre-release for that reason.
+GitHub blocked release-asset uploads from the build sandbox, so the jar is committed rather than
+attached.
+
 ## Quick start
 
 Translate every legacy jar in a `mods/` directory (originals are preserved):
