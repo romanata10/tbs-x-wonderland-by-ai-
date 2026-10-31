@@ -1,0 +1,45 @@
+# ForgeBridge - runtime Forge -> NeoForge compatibility layer.
+# Standard FML 4 (NeoForge 21.1) descriptor. NeoForge 21.1 accepts both
+# META-INF/mods.toml and the newer META-INF/neoforge.mods.toml.
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
+license="${mod_license}"
+issueTrackerURL="https://github.com/romanata10/tbs-x-wonderland-by-ai-/issues"
+
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
+authors="${mod_authors}"
+description='''${mod_description}'''
+
+# The bridge is a ModLauncher transformation service as well as a mod, so it must
+# be visible to the launcher. See docs/DEPLOYMENT.md for the two supported layouts.
+[[dependencies.${mod_id}]]
+    modId="neoforge"
+    type="required"
+    versionRange="${neo_version_range}"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="minecraft"
+    type="required"
+    versionRange="${minecraft_version_range}"
+    ordering="NONE"
+    side="BOTH"
+
+# Both target mods are optional: the bridge adapts to whichever are present.
+[[dependencies.${mod_id}]]
+    modId="wonderland"
+    type="optional"
+    versionRange="[0,)"
+    ordering="AFTER"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="the_broken_script"
+    type="optional"
+    versionRange="[0,)"
+    ordering="AFTER"
+    side="BOTH"

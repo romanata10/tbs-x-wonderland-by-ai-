@@ -1,0 +1,151 @@
+plugins {
+    id 'java-library'
+    id 'eclipse'
+    id 'idea'
+    id 'maven-publish'
+    id 'net.neoforged.gradle.userdev' version '7.0.170'
+}
+
+tasks.named('wrapper', Wrapper).configure {
+    distributionType = Wrapper.DistributionType.BIN
+}
+
+version = mod_version
+group = mod_group_id
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+}
+
+base {
+    archivesName = mod_id
+}
+
+// Minecraft 1.21.1 ships on Java 21, so the bridge targets Java 21 as well.
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+minecraft.accessTransformers.file rootProject.file('src/main/resources/META-INF/accesstransformer.cfg')
+
+runs {
+    configureEach {
+        systemProperty 'forge.logging.markers', 'REGISTRIES'
+        systemProperty 'forge.logging.console.level', 'debug'
+        // Let the bridge act before mod discovery even in a dev run.
+        systemProperty 'forgebridge.debug', 'true'
+        modSource project.sourceSets.main
+    }
+
+    client {
+        systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
+    }
+
+    server {
+        systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
+        argument '--nogui'
+    }
+
+    gameTestServer {
+        systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
+    }
+
+    data {
+        arguments.addAll '--mod', project.mod_id, '--all',
+                '--output', file('src/generated/resources/').getAbsolutePath(),
+                '--existing', file('src/main/resources/').getAbsolutePath()
+    }
+}
+
+sourceSets.main.resources { srcDir 'src/generated/resources' }
+
+configurations {
+    runtimeClasspath.extendsFrom localRuntime
+}
+
+dependencies {
+    implementation "net.neoforged:neoforge:${neo_version}"
+
+    // ASM is provided by ModLauncher / Minecraft at runtime; compile against it only.
+    // asm-commons gives us ClassRemapper; the bridge also ships a core-ASM-only fallback
+    // (dev.forgebridge.remap.CallSiteRedirector plus ConstantPoolRemapper) and a
+    // dependency-free constant-pool remapper, so a missing asm-commons is never fatal.
+    compileOnly 'org.ow2.asm:asm:9.7.1'
+    compileOnly 'org.ow2.asm:asm-commons:9.7.1'
+    compileOnly 'org.ow2.asm:asm-tree:9.7.1'
+}
+
+tasks.withType(ProcessResources).configureEach {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            neo_version_range      : neo_version_range,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+            mod_authors            : mod_authors,
+            mod_description        : mod_description
+    ]
+    inputs.properties replaceProperties
+
+    filesMatching(['META-INF/mods.toml', 'META-INF/neoforge.mods.toml']) {
+        expand replaceProperties
+    }
+}
+
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes([
+                'Specification-Title'     : mod_id,
+                'Specification-Vendor'    : mod_authors,
+                'Specification-Version'   : '1',
+                'Implementation-Title'    : project.name,
+                'Implementation-Version'  : project.jar.archiveVersion,
+                'Implementation-Vendor'   : mod_authors,
+                'Main-Class'              : 'dev.forgebridge.cli.BridgeCli',
+                'FMLModType'              : 'MOD',
+                // Advertised so launch-time tooling can spot the bridge without parsing mods.toml.
+                'ForgeBridge-Version'     : mod_version,
+                'ForgeBridge-MappingSet'  : 'forge-1.20.1->neoforge-21.1',
+                'Enable-Native-Access'    : 'ALL-UNNAMED'
+        ])
+    }
+    // Ship the service descriptor and the mapping data, never the build tooling.
+    exclude 'dev/forgebridge/tests/**'
+}
+
+publishing {
+    publications {
+        register('mavenJava', MavenPublication) {
+            from components.java
+        }
+    }
+    repositories {
+        maven { url "file://${project.projectDir}/repo" }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Offline verification
+// ---------------------------------------------------------------------------
+// Compiles the sources with Janino and runs the verification suite without the
+// Minecraft/NeoForge toolchain. Requires python3, jpype1 and a Java 21 runtime.
+// See docs/TESTING.md for what the suite covers.
+tasks.register('offlineVerification', Exec) {
+    group = 'verification'
+    description = 'Compile and run the verification suite without downloading NeoForge'
+    commandLine 'python3', 'tools/offline/build.py'
+}
