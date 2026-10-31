@@ -83,7 +83,7 @@ table cannot express:
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | install layouts, CLI, config keys, files on disk, troubleshooting |
 | [docs/MAPPINGS.md](docs/MAPPINGS.md) | how names are mapped, redirects, mapping file format, pipelines, residual audit |
 | [docs/LIMITATIONS.md](docs/LIMITATIONS.md) | removed APIs and their placeholders, NBT emulation, registries, mixins, data |
-| [docs/TESTING.md](docs/TESTING.md) | the offline verification harness, what it covers, and what it cannot |
+| [docs/TESTING.md](docs/TESTING.md) | the offline verification harness, its two test classes-of-path (with and without game classes), and what it cannot prove |
 
 ## Building
 
@@ -97,13 +97,14 @@ Without a JDK toolchain or network (how this repository was developed), use the 
 which compiles with Janino, packages the same jar and runs the verification suite:
 
 ```bash
-python3 tools/offline/build.py        # 87 tests, no game or network required
+python3 tools/offline/build.py        # 87 tests + a second JVM for the NBT component path
 ```
 
 ## Status
 
 * 70 source files, three remap pipelines, two compatibility profiles (`wonderland`, `the_broken_script`).
-* 87 verification tests across 10 suites, all green offline.
+* 87 verification tests across 10 suites plus 6 NBT component-path checks in a second JVM, all
+  green offline.
 * Not yet exercised in a real NeoForge installation — see the limits section of
   `docs/TESTING.md` before trusting it with a world you care about.
 

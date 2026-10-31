@@ -46,14 +46,18 @@ exist in 1.21.1 in any shape. The bridge emulates them (`dev.forgebridge.compat.
 * a tag is stored in the `custom_data` component, or in a weak map when no game is present;
 * a component is an immutable value, so reading it yields a **copy**. Forge handed out the live
   tag, and mods mutate it in place (`getOrCreateTag().putString(...)`), which a copy would silently
-  swallow. The bridge remembers what it handed out and writes it back once per tick
-  (`NbtTickBridge`), which means a mutation is visible to other readers after at most one tick.
+  swallow. The bridge therefore keeps tracking every tag it hands out, compares its content with
+  what was last written, and writes the difference back on the server/client tick
+  (`NbtTickBridge`). A second read of the **same** stack flushes first, so a mod that writes and
+  reads back sees its own change immediately; other readers see it within one tick.
 
 What this cannot fix:
 
 * a second `ItemStack` that was copied/serialised **between** the mutation and the flush sees the
-  old data (the flush uses the stack object as identity, and a copied stack is a different
-  object);
+  old data (tracking is keyed by the stack object, and a copied stack is a different object);
+* tracking is per stack object and lives as long as the stack does, so a tag handed out for a
+  long-lived stack is compared on every tick. Comparison is a string form of the tag, which is
+  cheap for item data and measurable for large mod-written tags;
 * `setTag` on a stack that shares its `custom_data` value with another stack writes a new
   component for the first one only, exactly as a value type would;
 * a mod that keeps a reference to a tag it obtained once and mutates it much later still works,

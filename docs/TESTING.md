@@ -16,9 +16,10 @@ reproduces the same pipeline with what is available:
 | `compileOnly` NeoForge/ModLauncher deps | 16 compile-only stubs under `tools/offline/stubs/java` |
 | `jar` | `zipfile` packaging into `build/libs/forgebridge-1.0.0.jar` with the same manifest attributes |
 | `test` | `tools/offline/tests/java`, compiled and run on a real JVM with the built jar + ASM |
+| a second `test` JVM | `tools/offline/game-stubs/java` stands in for the Minecraft classes the NBT emulation reflects on |
 
 ```
-python3 tools/offline/build.py            # compile, package, run the suite
+python3 tools/offline/build.py            # compile, package, run both test stages
 python3 tools/offline/build.py --no-tests # just the artifact
 python3 tools/offline/build.py --clean    # delete build/
 ```
@@ -82,6 +83,32 @@ invisible to a compiler:
 7. **`PatchOptions.dryRun` was ignored** by the jar patcher, so a dry run wrote a real output jar.
 8. **`-Dforgebridge.asmLevel`, `disableEventBridge`, `disableRegistryBridge` were declared but
    never honoured.** They are wired now (and are documented in `docs/DEPLOYMENT.md`).
+
+## The second JVM: the NBT component path
+
+`CompoundTags.isGamePresent()` asks the class path whether `net.minecraft.nbt.CompoundTag`
+exists. That question cannot be answered both ways in one process, so the harness runs a second
+JVM (`GamePathMain`) with `tools/offline/game-stubs` first on the class path. Those five stand-in
+classes — `CompoundTag`, `DataComponentType`, `DataComponents`, `CustomData`, `ItemStack` — have
+the same shapes and the same value semantics the bridge assumes: `CustomData.of(tag)` copies on
+the way in, `copyTag()` copies on the way out.
+
+Six checks run there: the lookups resolve, `getOrCreateTag` produces a real tag rather than the
+map fallback, mutations of a handed-out copy reach the component, nested tag elements round trip,
+`setTag(null)` clears the component, and `NbtTickBridge.install()` reports zero listeners when no
+tick event exists. That stage found two real defects in `ItemStackNbtBridge`:
+
+* a tag created by `getOrCreateTag()` was written once and then never tracked again, so
+  `getOrCreateTag().putString(...)` lost the mutation as soon as the component store copied it;
+* flushing dropped the tracking entry, so a second mutation of the same handed-out object was
+  invisible. Tracking is now continuous and write-back is driven by comparing content
+  (`Tracked.isDirty()`), and a read of the same stack flushes first, so a mod that writes and
+  reads back sees its own change immediately.
+
+Because the stand-ins are written from the same assumptions the bridge makes, this stage proves
+the *bookkeeping*, not the real API surface. If `DataComponents.CUSTOM_DATA` were spelled
+differently in the game, this suite would still pass and the bridge would still log "CustomData
+component not found" at runtime.
 
 ## The cross-version layer in particular
 

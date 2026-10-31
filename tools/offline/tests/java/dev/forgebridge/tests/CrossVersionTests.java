@@ -195,18 +195,39 @@ public final class CrossVersionTests {
             Object created = ItemStackNbtBridge.getOrCreateTag(stack);
             Assert.notNull(created, "first getOrCreateTag creates storage");
             Assert.equalInt(0, ItemStackNbtBridge.getPendingWrites(),
-                    "a freshly created tag is already the stored object");
+                    "a freshly created tag matches what was written");
+            // The caller mutates the object it was handed, and the store only kept a snapshot,
+            // so the object stays tracked and the mutation shows up as pending.
+            CompoundTags.put(created, "seed", "initial");
+            Assert.equalInt(1, ItemStackNbtBridge.getPendingWrites(),
+                    "the mutation of the created tag is pending");
+            Assert.equalInt(1, ItemStackNbtBridge.flushDirty(), "the created tag is written back");
+            Assert.isTrue(CompoundTags.contains(ItemStackNbtBridge.getTag(stack), "seed"),
+                    "a mutation made right after creation survives");
 
             Object handedOut = ItemStackNbtBridge.getOrCreateTag(stack);
             Assert.notNull(handedOut, "second getOrCreateTag returns a copy");
-            Assert.equalInt(1, ItemStackNbtBridge.getPendingWrites(), "the copy is tracked");
+            Assert.isTrue(handedOut != created, "the store hands out copies");
+            Assert.equalInt(0, ItemStackNbtBridge.getPendingWrites(),
+                    "a fresh copy matches the stored content, so nothing is pending yet");
             CompoundTags.put(handedOut, "charge", "full");
-            Assert.isFalse(CompoundTags.contains(ItemStackNbtBridge.getTag(stack), "charge"),
-                    "the stored value does not see the mutation before the flush");
+            Assert.equalInt(1, ItemStackNbtBridge.getPendingWrites(),
+                    "the mutation waits in the pending list");
 
-            Assert.equalInt(1, ItemStackNbtBridge.flushDirty(), "one stack flushed");
+            // Reading the same stack flushes first, so a mod that mutates and reads back sees its
+            // own change immediately; only other readers wait for the tick flush.
             Assert.isTrue(CompoundTags.contains(ItemStackNbtBridge.getTag(stack), "charge"),
-                    "the mutation reached the stack after the flush");
+                    "a read of the same stack sees the pending mutation");
+            Assert.equalInt(0, ItemStackNbtBridge.getPendingWrites(),
+                    "the read consumed the pending write");
+
+            Object second = ItemStackNbtBridge.getOrCreateTag(stack);
+            CompoundTags.put(second, "tier", "two");
+            Assert.equalInt(1, ItemStackNbtBridge.flushDirty(), "one stack flushed");
+            Object readBack = ItemStackNbtBridge.getTag(stack);
+            Assert.isTrue(CompoundTags.contains(readBack, "tier"), "the flushed mutation is stored");
+            Assert.isTrue(CompoundTags.contains(readBack, "charge"), "the earlier value survived");
+            Assert.isTrue(CompoundTags.contains(readBack, "seed"), "the first value survived");
             Assert.equalInt(0, ItemStackNbtBridge.getPendingWrites(), "the pending list is empty");
         } finally {
             ItemStackNbtBridge.setStoreFactory(null);

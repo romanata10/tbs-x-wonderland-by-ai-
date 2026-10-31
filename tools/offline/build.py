@@ -27,6 +27,7 @@ import zipfile
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 LIB = os.path.join(ROOT, "tools", "offline", "lib")
 STUBS = os.path.join(ROOT, "tools", "offline", "stubs", "java")
+GAME_STUBS = os.path.join(ROOT, "tools", "offline", "game-stubs", "java")
 TESTS = os.path.join(ROOT, "tools", "offline", "tests", "java")
 MAIN = os.path.join(ROOT, "src", "main", "java")
 RES = os.path.join(ROOT, "src", "main", "resources")
@@ -176,24 +177,29 @@ def main():
     if args.clean and os.path.isdir(out):
         shutil.rmtree(out)
     stub_out = os.path.join(out, "stub-classes")
+    game_stub_out = os.path.join(out, "game-stub-classes")
     classes_out = os.path.join(out, "classes")
     test_out = os.path.join(out, "test-classes")
-    for directory in (stub_out, classes_out, test_out):
+    for directory in (stub_out, game_stub_out, classes_out, test_out):
         if os.path.isdir(directory):
             shutil.rmtree(directory)
         os.makedirs(directory)
 
     jpype = start_janino(java)
 
-    print("\n[1/5] compiling compile-only API stubs (not shipped)")
+    print("\n[1/6] compiling compile-only API stubs (not shipped)")
     compile_sources(jpype, glob.glob(os.path.join(STUBS, "**", "*.java"), recursive=True),
                     stub_out, [ASM], "stubs")
 
-    print("\n[2/5] compiling bridge sources")
+    print("\n[2/6] compiling the game-shape stubs used by the NBT component check (not shipped)")
+    compile_sources(jpype, glob.glob(os.path.join(GAME_STUBS, "**", "*.java"), recursive=True),
+                    game_stub_out, [], "game stubs")
+
+    print("\n[3/6] compiling bridge sources")
     compile_sources(jpype, glob.glob(os.path.join(MAIN, "**", "*.java"), recursive=True),
                     classes_out, [stub_out, ASM], "bridge")
 
-    print("\n[3/5] copying resources")
+    print("\n[4/6] copying resources")
     copied = 0
     for base, _dirs, files in os.walk(RES):
         for name in files:
@@ -205,7 +211,7 @@ def main():
             copied += 1
     print("  copied %d resource(s)" % copied)
 
-    print("\n[4/5] packaging jar")
+    print("\n[5/6] packaging jar")
     jar_path = os.path.join(ROOT, "build", "libs", "forgebridge-" + version + ".jar")
     entries = package_jar(version, classes_out, jar_path)
     size = os.path.getsize(jar_path)
@@ -215,7 +221,7 @@ def main():
         print("\nskipping tests (--no-tests)")
         return 0
 
-    print("\n[5/5] compiling and running the verification suite")
+    print("\n[6/6] compiling and running the verification suite")
     compile_sources(jpype, glob.glob(os.path.join(TESTS, "**", "*.java"), recursive=True),
                     test_out, [jar_path, stub_out, ASM], "tests")
 
@@ -231,6 +237,17 @@ def main():
     if result.returncode != 0:
         sys.stderr.write(result.stderr)
         fail("verification suite reported failures (exit " + str(result.returncode) + ")")
+    # Second JVM: the NBT emulation against stand-ins for the Minecraft classes it reflects on.
+    # They must come first on the class path, because isGamePresent() is a class-path question.
+    game_classpath = os.pathsep.join([jar_path, game_stub_out, test_out, ASM])
+    game_result = subprocess.run([java, "-Dforgebridge.debug=false", "-cp", game_classpath,
+                                  "dev.forgebridge.tests.GamePathMain"],
+                                 cwd=run_dir, capture_output=True, text=True)
+    sys.stdout.write(game_result.stdout)
+    if game_result.returncode != 0:
+        sys.stderr.write(game_result.stderr)
+        fail("NBT component path failed (exit " + str(game_result.returncode) + ")")
+
     print("\n[OK] build and verification completed")
     print("     artifact: " + os.path.relpath(jar_path, ROOT))
     return 0

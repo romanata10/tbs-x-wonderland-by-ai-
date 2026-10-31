@@ -35,7 +35,39 @@ public final class ItemStackNbtBridge {
         TagStore createStore(Object target);
     }
 
-    private static final Map<Object, Object> DIRTY = new WeakHashMap<Object, Object>();
+    /**
+     * Tags handed out to callers, keyed by stack (weakly, so a dropped stack stops being tracked).
+     *
+     * <p>A tracking entry is not a queue item: it stays while the stack is alive, and
+     * {@link #flushDirty()} writes only the tags whose content changed since the last write. That
+     * is what makes a second mutation of the same object survive - Forge had one live tag, so the
+     * bridge has to keep looking at the object it handed out instead of dropping it after one
+     * write.</p>
+     */
+    private static final Map<Object, Tracked> DIRTY = new WeakHashMap<Object, Tracked>();
+    /** A handed-out tag plus the content that was last written for it. */
+    private static final class Tracked {
+        private final Object tag;
+        private String written;
+
+        Tracked(Object tag, String written) {
+            this.tag = tag;
+            this.written = written;
+        }
+
+        Object getTag() {
+            return tag;
+        }
+
+        boolean isDirty() {
+            return !String.valueOf(written).equals(CompoundTags.describe(tag));
+        }
+
+        void markWritten() {
+            written = CompoundTags.describe(tag);
+        }
+    }
+
     private static volatile TagStoreFactory factory;
     private static int flushes;
     private static int writes;
@@ -47,6 +79,7 @@ public final class ItemStackNbtBridge {
 
     /** {@code ItemStack.getTag()} */
     public static Object getTag(Object stack) {
+        flushStack(stack);
         TagStore store = storeFor(stack);
         return store == null ? null : store.read();
     }
@@ -65,10 +98,14 @@ public final class ItemStackNbtBridge {
         }
         if (tag != null && CompoundTags.isEmpty(tag)) {
             store.write(null);
+            forget(stack);
         } else {
             store.write(tag);
+            // Forge's setTag stored the tag itself, so later mutations of the same object were
+            // visible. A component stores a snapshot, so the object the caller still holds has to
+            // be tracked until the next flush.
+            rememberIfCopying(stack, tag);
         }
-        forget(stack);
         writes++;
     }
 
@@ -77,6 +114,7 @@ public final class ItemStackNbtBridge {
      * returns the mutable tag the caller is about to modify.
      */
     public static Object getOrCreateTag(Object stack) {
+        flushStack(stack);
         TagStore store = storeFor(stack);
         if (store == null) {
             return null;
@@ -86,6 +124,10 @@ public final class ItemStackNbtBridge {
             tag = CompoundTags.newCompound();
             store.write(tag);
             writes++;
+            // The caller mutates the object it just received (getOrCreateTag().putString(...)).
+            // With a copying store that mutation only exists on this object, so it must be
+            // flushed back; a live store already holds the same object.
+            rememberIfCopying(stack, tag);
         } else if (!store.isLive()) {
             remember(stack, tag);
         }
@@ -115,6 +157,7 @@ public final class ItemStackNbtBridge {
 
     /** {@code ItemStack.removeTagKey(String)} (1.20.1 added it; 1.21 removed it with the rest). */
     public static void removeTagKey(Object stack, String key) {
+        flushStack(stack);
         TagStore store = storeFor(stack);
         if (store == null) {
             return;
@@ -133,32 +176,80 @@ public final class ItemStackNbtBridge {
         writes++;
     }
 
+    // ------------------------------------------------------------------ read/write ordering
+
+    /**
+     * Writes a mutated tag back before the same stack is read again.
+     *
+     * <p>Reading a stack has to close the window rather than widen it: a Forge reader would have
+     * seen the mutation immediately (there was one live tag), so a mod that writes
+     * {@code getOrCreateTag().putString(...)} and then reads the stack back must not get the
+     * pre-mutation value. Only <em>other</em> readers wait for the tick flush.</p>
+     */
+    private static void flushStack(Object stack) {
+        Tracked tracked;
+        synchronized (ItemStackNbtBridge.class) {
+            tracked = (Tracked) DIRTY.get(stack);
+        }
+        if (tracked == null || !tracked.isDirty()) {
+            return;
+        }
+        TagStore store = storeFor(stack);
+        if (store == null) {
+            return;
+        }
+        try {
+            store.write(tracked.getTag());
+            tracked.markWritten();
+        } catch (Throwable error) {
+            BridgeLog.warn("Could not write back NBT for a stack; it stays tracked", error);
+        }
+    }
+
     // ------------------------------------------------------------------ flushing
 
     /**
-     * Writes every tag handed out since the last flush back to its stack.
+     * Writes every tracked tag whose content changed since the last write.
+     *
+     * <p>Attached to the server and client tick ({@link NbtTickBridge}), because a data component
+     * is an immutable value: without this, a mutation of a handed-out tag would never reach the
+     * stack for anyone who did not read it again.</p>
      *
      * @return number of stacks that were written
      */
     public static int flushDirty() {
-        List<Object[]> pending = new ArrayList<Object[]>();
+        List<Object> dirty = new ArrayList<Object>();
         synchronized (ItemStackNbtBridge.class) {
             Iterator<Object> iterator = DIRTY.keySet().iterator();
             while (iterator.hasNext()) {
                 Object stack = iterator.next();
-                pending.add(new Object[]{stack, DIRTY.get(stack)});
+                Tracked tracked = (Tracked) DIRTY.get(stack);
+                if (tracked != null && tracked.isDirty()) {
+                    dirty.add(stack);
+                }
             }
-            DIRTY.clear();
         }
         int written = 0;
-        for (int i = 0; i < pending.size(); i++) {
-            Object[] pair = (Object[]) pending.get(i);
-            TagStore store = storeFor(pair[0]);
+        for (int i = 0; i < dirty.size(); i++) {
+            Object stack = dirty.get(i);
+            Tracked tracked;
+            synchronized (ItemStackNbtBridge.class) {
+                tracked = (Tracked) DIRTY.get(stack);
+            }
+            if (tracked == null || !tracked.isDirty()) {
+                continue;
+            }
+            TagStore store = storeFor(stack);
             if (store == null) {
                 continue;
             }
-            store.write(pair[1]);
-            written++;
+            try {
+                store.write(tracked.getTag());
+                tracked.markWritten();
+                written++;
+            } catch (Throwable error) {
+                BridgeLog.warn("Could not flush NBT for a stack; it stays tracked", error);
+            }
         }
         if (written > 0) {
             flushes++;
@@ -167,10 +258,18 @@ public final class ItemStackNbtBridge {
         return written;
     }
 
-    /** Number of stacks currently waiting to be flushed. */
+    /** Number of tracked tags whose content differs from what was last written. */
     public static int getPendingWrites() {
         synchronized (ItemStackNbtBridge.class) {
-            return DIRTY.size();
+            int pending = 0;
+            Iterator<Object> iterator = DIRTY.keySet().iterator();
+            while (iterator.hasNext()) {
+                Tracked tracked = (Tracked) DIRTY.get(iterator.next());
+                if (tracked != null && tracked.isDirty()) {
+                    pending++;
+                }
+            }
+            return pending;
         }
     }
 
@@ -213,12 +312,27 @@ public final class ItemStackNbtBridge {
         return new ShadowTagStore(stack);
     }
 
+    /**
+     * Starts tracking a tag (and records what was just written for it).
+     *
+     * <p>An existing entry for the same object keeps its snapshot: the caller may already have
+     * mutated the tag between the write and this call ({@code getOrCreateTagElement} nests a new
+     * compound into it), and that mutation still has to count as pending.</p>
+     */
     private static void remember(Object stack, Object tag) {
+        if (stack == null || tag == null) {
+            return;
+        }
         synchronized (ItemStackNbtBridge.class) {
-            DIRTY.put(stack, tag);
+            Tracked existing = (Tracked) DIRTY.get(stack);
+            if (existing != null && existing.getTag() == tag) {
+                return;
+            }
+            DIRTY.put(stack, new Tracked(tag, CompoundTags.describe(tag)));
         }
     }
 
+    /** Tracks a tag only when the store hands out copies; a live store already holds it. */
     private static void rememberIfCopying(Object stack, Object tag) {
         TagStore store = storeFor(stack);
         if (store != null && !store.isLive()) {
