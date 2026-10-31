@@ -97,13 +97,13 @@ Without a JDK toolchain or network (how this repository was developed), use the 
 which compiles with Janino, packages the same jar and runs the verification suite:
 
 ```bash
-python3 tools/offline/build.py        # 87 tests + a second JVM for the NBT component path
+python3 tools/offline/build.py        # 89 tests + a second JVM for the NBT component path
 ```
 
 ## Status
 
 * 70 source files, three remap pipelines, two compatibility profiles (`wonderland`, `the_broken_script`).
-* 87 verification tests across 10 suites plus 6 NBT component-path checks in a second JVM, all
+* 89 verification tests across 10 suites plus 6 NBT component-path checks in a second JVM, all
   green offline.
 * Not yet exercised in a real NeoForge installation — see the limits section of
   `docs/TESTING.md` before trusting it with a world you care about.

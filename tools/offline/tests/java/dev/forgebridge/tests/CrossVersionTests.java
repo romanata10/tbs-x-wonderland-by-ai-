@@ -4,8 +4,10 @@ import dev.forgebridge.compat.nbt.CompoundTags;
 import dev.forgebridge.compat.nbt.ItemStackNbtBridge;
 import dev.forgebridge.compat.nbt.TagStore;
 import dev.forgebridge.compat.registry.LegacyRegistryQueue;
+import dev.forgebridge.compat.registry.RegistryBridge;
 import dev.forgebridge.compat.registry.RegistryEvent;
 import dev.forgebridge.compat.registry.RegistryLifecycleBridge;
+import dev.forgebridge.events.LegacyDispatcher;
 import dev.forgebridge.remap.AsmSupport;
 import dev.forgebridge.remap.BuiltinMappings;
 import dev.forgebridge.remap.ClassRemapEngine;
@@ -260,6 +262,35 @@ public final class CrossVersionTests {
 
     // ------------------------------------------------------------------ registry lifecycle
 
+    /** A stand-in for NeoForge's RegisterEvent: only {@code getRegistryKey()} is consulted. */
+    private static final class FakeRegisterEvent {
+        private final Object key;
+
+        FakeRegisterEvent(final String registryId) {
+            this.key = new Object() {
+                public Object location() {
+                    return registryId;
+                }
+            };
+        }
+
+        public Object getRegistryKey() {
+            return key;
+        }
+    }
+
+    /** A 1.20.1 listener method, reached the way the bridge reaches mod listeners. */
+    private static final class LegacyCapture {
+        int received;
+        String registryName;
+
+        public void onRegister(RegistryEvent event) {
+            received++;
+            registryName = event.getRegistryNameString();
+        }
+    }
+
+
     /** Records what the bridge asks NeoForge to do. */
     private static final class RecordingRegistrar implements RegistryLifecycleBridge.Registrar {
         final List<String> calls = new ArrayList<String>();
@@ -371,6 +402,53 @@ public final class CrossVersionTests {
             Assert.isNull(RegistryLifecycleBridge.pathOf(null), "null id has no path");
         } finally {
             RegistryLifecycleBridge.clear();
+        }
+    }
+
+    public static void testRegisterEventReachesLegacyListenersAndTheQueue() {
+        LegacyRegistryQueue.clear();
+        LegacyDispatcher.clear();
+        RecordingRegistrar registrar = new RecordingRegistrar(true);
+        RegistryLifecycleBridge.setRegistrar(registrar);
+        RegistryLifecycleBridge.install(new Object(), "examplemod");
+        try {
+            final LegacyCapture capture = new LegacyCapture();
+            LegacyDispatcher.addListener(RegistryEvent.Register.class, capture,
+                    LegacyCapture.class.getMethod("onRegister", RegistryEvent.class), 0);
+            LegacyRegistryQueue.enqueue("minecraft:item", "examplemod:rune", constant("rune-item"));
+
+            RegistryBridge.onRegisterEvent(new FakeRegisterEvent("minecraft:item"));
+
+            Assert.equalInt(1, capture.received,
+                    "the legacy RegistryEvent.Register listener was called");
+            Assert.equal("minecraft:item", capture.registryName, "the listener saw the registry id");
+            Assert.equalInt(1, RegistryLifecycleBridge.getFlushedCount(),
+                    "the queued registration was flushed through the lifecycle bridge");
+            Assert.contains(registrar.calls.toString(), "register rune -> rune-item",
+                    "the deferred register received the legacy entry, was: " + registrar.calls);
+        } catch (NoSuchMethodException error) {
+            Assert.fail("could not resolve the listener method: " + error);
+        } finally {
+            LegacyDispatcher.clear();
+            LegacyRegistryQueue.clear();
+            RegistryLifecycleBridge.setRegistrar(null);
+            RegistryLifecycleBridge.clear();
+        }
+    }
+
+    public static void testRegisterEventWithAnUnknownKeyIsIgnored() {
+        LegacyRegistryQueue.clear();
+        RegistryLifecycleBridge.clear();
+        try {
+            LegacyRegistryQueue.enqueue("minecraft:item", "examplemod:rune", constant("rune-item"));
+            // No registry key resolvable: the bridge must not throw and must not flush into a
+            // registry it could not identify.
+            RegistryBridge.onRegisterEvent(new Object());
+            Assert.equalInt(1, LegacyRegistryQueue.size("minecraft:item"),
+                    "the queue is left alone when the registry is unknown");
+            Assert.equalInt(0, RegistryLifecycleBridge.getFlushedCount(), "nothing was flushed");
+        } finally {
+            LegacyRegistryQueue.clear();
         }
     }
 

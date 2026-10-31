@@ -36,7 +36,7 @@ implements, and are not part of the jar — the same relationship `compileOnly` 
 does not extend `Comparable` (Janino has no interface default methods). Neither difference is
 reachable from the bridge's runtime behaviour.
 
-## What the suite covers (87 tests, 10 suites)
+## What the suite covers (89 tests, 10 suites)
 
 | Suite | Subjects |
 | --- | --- |
@@ -48,7 +48,7 @@ reachable from the bridge's runtime behaviour.
 | `EventTests` | NeoForge vs legacy listener split, priority ordering, reflective annotation reading, no-bus safety |
 | `RegistryTests` | 15 registry keys, null-registry behaviour outside the game, cache lifecycle, the registration queue, `DeferredRegisterBridge` failure paths |
 | `CompatTests` | default config generation, config parsing (including `nbtBridge`), mod detection by file name, aliases/shared tags, the compatibility profiles, generated data pack |
-| `CrossVersionTests` | the 1.20.1→1.21.1 layer: `ItemStack` NBT accessors and `ResourceLocation` constructors rewritten into bridge calls, the "cannot prove it, so report it" path, the NBT emulation (shadow store round trip, copied tags written back on flush), the registry lifecycle bridge through a recording `Registrar` (deferred register, namespace stripping, fallback, custom-registry refusal) |
+| `CrossVersionTests` | the 1.20.1→1.21.1 layer: `ItemStack` NBT accessors and `ResourceLocation` constructors rewritten into bridge calls, the "cannot prove it, so report it" path, the NBT emulation (shadow store round trip, copied tags written back on flush), the registry lifecycle bridge through a recording `Registrar` (deferred register, namespace stripping, fallback, custom-registry refusal), and a synthetic `RegisterEvent` reaching both a legacy `RegistryEvent.Register` listener and the queue |
 | `CliTests` | every CLI command, exit codes, dry run, `prepare` on a real directory |
 
 Everything runs headless: no Minecraft, no NeoForge, no network. The suite creates its synthetic
