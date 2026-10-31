@@ -1,0 +1,42 @@
+name: Attach release asset
+
+# The jar in dist/ is committed because the build sandbox cannot reach uploads.github.com (the
+# only host that accepts release-asset uploads). This workflow does that upload from GitHub's own
+# runner instead, which is not restricted, so the artifact ends up as a real release asset and not
+# just a file in the tree.
+on:
+  push:
+    paths:
+      - 'dist/*.jar'
+      - '.github/workflows/attach-release-asset.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  attach:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify and attach the jar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          jar=$(ls dist/forgebridge-*.jar | head -n 1)
+          version=${jar#dist/forgebridge-}
+          version=${version%.jar}
+          tag="v${version}"
+          echo "artifact: $jar"
+          echo "tag     : $tag"
+          sha256sum "$jar"
+
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --target "$GITHUB_SHA" \
+              --title "ForgeBridge $version" --prerelease --notes "See dist/README.md for provenance."
+          fi
+
+          gh release upload "$tag" "$jar" --clobber
+          gh release view "$tag" --json assets --jq '.assets[] | "\(.name)\t\(.size) bytes\t\(.browserDownloadUrl)"'
