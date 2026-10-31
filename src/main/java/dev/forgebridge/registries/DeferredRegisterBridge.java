@@ -11,7 +11,7 @@ import java.util.function.Supplier;
 /**
  * Target of the {@code DeferredRegister.create} call-site redirect.
  *
- * <p>Forge 1.21.1: {@code DeferredRegister.create(ResourceLocation, String)}<br>
+ * <p>Forge 1.20.1: {@code DeferredRegister.create(ResourceLocation, String)}<br>
  * NeoForge 21.1: {@code DeferredRegister.create(ResourceKey<? extends Registry<T>>, String)}</p>
  *
  * <p>The signatures differ in the first parameter type, so renaming alone produces a

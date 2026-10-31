@@ -1,13 +1,14 @@
 # Deploying ForgeBridge
 
-ForgeBridge lets a **Forge 1.21.1 mod** run on **NeoForge 21.1.x** (Minecraft 1.21.1, Java 21).
+ForgeBridge lets a **Forge 1.20.1 mod** run on **NeoForge 21.1.x** (Minecraft 1.21.1, Java 21).
 It does that in two independent halves, and you can use either one:
 
 1. **Translation** — a jar-level pass that rewrites class names, call sites, the descriptor,
    mixin configs, service files, tags and recipe conditions. It runs from the CLI or
    automatically at launch.
 2. **Runtime** — shims the rewritten jar links against: `RegistryAccess`, `LegacyRegistry`,
-   `DeferredRegisterBridge`, `LegacyDispatcher`, placeholder classes for removed APIs.
+   `DeferredRegisterBridge`, `RegistryLifecycleBridge`, `ItemStackNbtBridge` (with its per-tick
+   flush), `LegacyDispatcher`, placeholder classes for removed APIs.
 
 Translation alone gets a mod to load; the runtime shims are what keep it working afterwards.
 Install both halves — that means the bridge jar stays in `mods/` even if you translate with the
@@ -16,8 +17,17 @@ CLI.
 ## Requirements
 
 * Minecraft 1.21.1 with NeoForge 21.1.x (built and tested against 21.1.176), Java 21.
-* Nothing else. ASM is used when the launcher provides it (it always does); without it the
-  bridge falls back to a core-ASM or pure constant-pool pipeline.
+* Nothing else at runtime. ASM is used when the launcher provides it (it always does); without it
+  the bridge falls back to a core-ASM or pure constant-pool pipeline.
+
+The jar does **not** bundle ASM, so the CLI needs it on the class path when it is run outside a
+launch:
+
+```bash
+java -cp forgebridge-1.0.0.jar:asm-9.7.jar dev.forgebridge.cli.BridgeCli prepare /path/to/mods
+```
+
+Without ASM the CLI exits with status 3 and says exactly that, instead of a stack trace.
 
 ## Layout A — let the bridge translate at launch (simplest)
 
@@ -34,7 +44,7 @@ discovery), the service never runs and you get the unmodified mod. Use layout B 
 ## Layout B — translate first, ship the result (deterministic)
 
 ```
-java -jar forgebridge-1.0.0.jar prepare /path/to/mods
+java -cp forgebridge-1.0.0.jar:asm-9.7.jar dev.forgebridge.cli.BridgeCli prepare /path/to/mods
 ```
 
 `prepare` rewrites the legacy jars in place, moves the originals to

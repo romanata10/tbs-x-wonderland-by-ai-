@@ -132,6 +132,29 @@ public final class PlaceholderClassGenerator {
         return writer.toByteArray();
     }
 
+    /**
+     * An annotation type with no elements.
+     *
+     * <p>Forge 1.20.1 had annotations whose only job was to be read by the loader
+     * ({@code @ObjectHolder}, for example). The loader that read them is gone, so the annotation
+     * only has to exist: a class file that carries it must link. It declares no elements, which
+     * means a mod that wrote {@code @ObjectHolder("mod:name")} will fail if anything ever reads
+     * the value - and nothing will, because the code that read it was removed as well. That is
+     * stated here rather than silently assumed.</p>
+     */
+    public static byte[] generateAnnotation(String internalName, String message) {
+        ClassWriter writer = newWriter();
+        writer.visit(Opcodes.V21,
+                Opcodes.ACC_PUBLIC | Opcodes.ACC_ABSTRACT | Opcodes.ACC_INTERFACE | Opcodes.ACC_ANNOTATION,
+                internalName, null, "java/lang/Object", new String[]{"java/lang/annotation/Annotation"});
+        writer.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, MARKER_FIELD,
+                "Z", null, Boolean.TRUE).visitEnd();
+        writer.visitField(Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, MESSAGE_FIELD,
+                "Ljava/lang/String;", null, message).visitEnd();
+        writer.visitEnd();
+        return writer.toByteArray();
+    }
+
     /** Logs what the placeholder is standing in for, and why the call cannot work. */
     public static byte[] generateSupportClass() {
         String internalName = "dev/forgebridge/api/placeholder/PlaceholderSupport";

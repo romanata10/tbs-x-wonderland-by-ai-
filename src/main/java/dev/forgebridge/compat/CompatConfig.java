@@ -25,6 +25,7 @@ public final class CompatConfig {
     private boolean eventBridge = true;
     private boolean registryBridge = true;
     private boolean tagBridge = true;
+    private boolean nbtBridge = true;
     private boolean placeholders = true;
     private boolean patchOnStartup = true;
     private boolean verbose = false;
@@ -128,6 +129,8 @@ public final class CompatConfig {
             registryBridge = flag;
         } else if ("tagBridge".equals(key)) {
             tagBridge = flag;
+        } else if ("nbtBridge".equals(key)) {
+            nbtBridge = flag;
         } else if ("placeholders".equals(key)) {
             placeholders = flag;
         } else if ("patchOnStartup".equals(key)) {
@@ -151,6 +154,9 @@ public final class CompatConfig {
         sb.append("eventBridge = ").append(eventBridge).append('\n');
         sb.append("registryBridge = ").append(registryBridge).append('\n');
         sb.append("tagBridge = ").append(tagBridge).append('\n');
+        sb.append("# Keeps the ItemStack.getTag()/getOrCreateTag() emulation flushing mutations once per\n");
+        sb.append("# tick. Disabling it leaves bytecode redirects active but writes only on setTag.\n");
+        sb.append("nbtBridge = ").append(nbtBridge).append('\n');
         sb.append("placeholders = ").append(placeholders).append('\n');
         sb.append("crossModHooks = ").append(crossModHooks).append("\n\n");
         sb.append("# Per-mod opt-out. Both mods are optional; the bridge only acts when\n");
@@ -178,6 +184,10 @@ public final class CompatConfig {
 
     public boolean isTagBridge() {
         return enabled && tagBridge;
+    }
+
+    public boolean isNbtBridge() {
+        return enabled && nbtBridge;
     }
 
     public boolean isPlaceholders() {

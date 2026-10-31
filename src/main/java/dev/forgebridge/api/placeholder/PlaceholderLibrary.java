@@ -34,6 +34,8 @@ public final class PlaceholderLibrary {
             this.stubName = PlaceholderClassGenerator.placeholderName(legacyName);
             if ("interface".equals(kind)) {
                 this.bytes = PlaceholderClassGenerator.generateInterface(stubName, message);
+            } else if ("annotation".equals(kind)) {
+                this.bytes = PlaceholderClassGenerator.generateAnnotation(stubName, message);
             } else if ("empty".equals(kind)) {
                 this.bytes = PlaceholderClassGenerator.generateEmptyClass(stubName, message);
             } else {
@@ -123,6 +125,20 @@ public final class PlaceholderLibrary {
                 "NetworkRegistry was removed in NeoForge 21");
         library.add("net/minecraftforge/network/NetworkDirection", "empty",
                 "NetworkDirection was removed in NeoForge 21");
+        // Forge 1.20.1 lifecycle types that NeoForge 21 does not carry at all. Each of these is
+        // referenced from a 1.20.1 mod's constructor or registry code, so without a stub the class
+        // fails to load before any of the bridge's diagnostics can run.
+        library.add("net/minecraftforge/common/capabilities/CapabilityProvider", "stub",
+                "CapabilityProvider was removed in NeoForge 21; expose capabilities through "
+                        + "RegisterCapabilitiesEvent and a CapabilityToken lookup");
+        library.add("net/minecraftforge/common/capabilities/ICapabilitySerializable", "interface",
+                "ICapabilitySerializable was removed in NeoForge 21 with the capability rewrite");
+        library.add("net/minecraftforge/registries/RegistryBuilder", "stub",
+                "RegistryBuilder was removed; NeoForge creates registries through NewRegistryEvent "
+                        + "and data driven registry keys, see RegistryLifecycleBridge");
+        library.add("net/minecraftforge/registries/ObjectHolder", "annotation",
+                "@ObjectHolder is an empty annotation here: the loader code that read the value is "
+                        + "gone, so the field it annotated is not injected and stays null");
         return library;
     }
 

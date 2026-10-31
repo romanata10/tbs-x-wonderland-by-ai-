@@ -17,7 +17,8 @@ final class AsmRemapPipeline {
     private AsmRemapPipeline() {
     }
 
-    static byte[] fullRemap(byte[] input, MappingTable table, RedirectTable redirects, List<String> appliedRedirects) {
+    static byte[] fullRemap(byte[] input, MappingTable table, RedirectTable redirects,
+                            List<String> appliedRedirects, List<String> unappliedRedirects) {
         ClassReader reader = new ClassReader(input);
         ClassWriter writer = new ClassWriter(0);
         LegacyRemapper remapper = new LegacyRemapper(table);
@@ -26,6 +27,7 @@ final class AsmRemapPipeline {
             CallSiteRedirector redirector = new CallSiteRedirector(tail, redirects);
             reader.accept(redirector, 0);
             appliedRedirects.addAll(redirector.getAppliedRedirects());
+            unappliedRedirects.addAll(redirector.getUnappliedRedirects());
         } else {
             reader.accept(tail, 0);
         }
@@ -33,7 +35,8 @@ final class AsmRemapPipeline {
     }
 
     /** Core-ASM only: rewrite call sites, leave names to the constant pool pass. */
-    static byte[] redirectOnly(byte[] input, RedirectTable redirects, List<String> appliedRedirects) {
+    static byte[] redirectOnly(byte[] input, RedirectTable redirects, List<String> appliedRedirects,
+                               List<String> unappliedRedirects) {
         if (redirects == null || redirects.size() == 0) {
             return input;
         }
@@ -42,6 +45,7 @@ final class AsmRemapPipeline {
         CallSiteRedirector redirector = new CallSiteRedirector(writer, redirects);
         reader.accept(redirector, 0);
         appliedRedirects.addAll(redirector.getAppliedRedirects());
+        unappliedRedirects.addAll(redirector.getUnappliedRedirects());
         return redirector.getAppliedRedirects().isEmpty() ? input : writer.toByteArray();
     }
 }

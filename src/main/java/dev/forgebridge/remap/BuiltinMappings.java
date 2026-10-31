@@ -1,7 +1,7 @@
 package dev.forgebridge.remap;
 
 /**
- * The built-in MinecraftForge 1.21.1 to NeoForge 21.1 mapping set.
+ * The built-in Forge 1.20.1 to NeoForge 21.1 mapping set.
  *
  * <p>NeoForge is a hard fork of Forge 1.20.1 that renamed its own packages. The bulk of
  * the translation is therefore a package prefix rewrite, with a comparatively small set
@@ -25,7 +25,7 @@ package dev.forgebridge.remap;
 public final class BuiltinMappings {
 
     /** Version tag exposed in logs and in the jar manifest. */
-    public static final String TABLE_VERSION = "forge-1.21.1->neoforge-21.1.176";
+    public static final String TABLE_VERSION = "forge-1.20.1->neoforge-21.1";
 
     private static volatile MappingTable cached;
 
@@ -49,7 +49,7 @@ public final class BuiltinMappings {
     private static MappingTable build() {
         MappingTable table = new MappingTable();
         table.setName(TABLE_VERSION);
-        table.note("forge", "1.21.1");
+        table.note("forge", "1.20.1");
         table.note("neoforge", "21.1.176");
         table.note("minecraft", "1.21.1");
 

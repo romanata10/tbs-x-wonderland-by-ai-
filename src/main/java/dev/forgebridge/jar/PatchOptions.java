@@ -11,6 +11,7 @@ public final class PatchOptions {
     private String bridgeVersion = "1.0.0";
     private String neoforgeDependencyRange = "[21.1.0,)";
     private String loaderVersionRange = "[4,)";
+    private String minecraftVersionRange = "[1.21.1,1.22)";
     private boolean rewriteTagsToCommonNamespace = true;
     private boolean rewriteRecipesConditions = true;
     private boolean upgradeMixinCompatibilityLevel = true;
@@ -53,6 +54,16 @@ public final class PatchOptions {
 
     public PatchOptions setLoaderVersionRange(String value) {
         this.loaderVersionRange = value;
+        return this;
+    }
+
+    /** The {@code minecraft} dependency range a translated descriptor declares. */
+    public String getMinecraftVersionRange() {
+        return minecraftVersionRange;
+    }
+
+    public PatchOptions setMinecraftVersionRange(String value) {
+        this.minecraftVersionRange = value;
         return this;
     }
 

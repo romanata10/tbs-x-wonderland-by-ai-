@@ -51,6 +51,7 @@ public final class CompatTests {
                     + "eventBridge = false\n"
                     + "registryBridge = true\n"
                     + "tagBridge = false\n"
+                    + "nbtBridge = false\n"
                     + "placeholders = false\n"
                     + "crossModHooks = false\n"
                     + "\n[mods]\n"
@@ -63,6 +64,7 @@ public final class CompatTests {
             Assert.isFalse(config.isEventBridge(), "event bridge disabled");
             Assert.isTrue(config.isRegistryBridge(), "registry bridge kept");
             Assert.isFalse(config.isTagBridge(), "tag bridge disabled");
+            Assert.isFalse(config.isNbtBridge(), "NBT flush disabled");
             Assert.isFalse(config.isPlaceholders(), "placeholders disabled");
             Assert.isFalse(config.isPatchOnStartup(), "autopatch disabled");
             Assert.isTrue(config.isVerbose(), "verbose enabled");

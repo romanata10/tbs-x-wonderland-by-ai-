@@ -97,6 +97,9 @@ public final class JarPatcher {
                         report.addRedirect(name + " :: " + result.getAppliedRedirects().get(i));
                     }
                     report.addResidualReferences(result.getResidualReferences());
+                    for (int u = 0; u < result.getUnappliedRedirects().size(); u++) {
+                        report.warn(name + ": " + String.valueOf(result.getUnappliedRedirects().get(u)));
+                    }
                     String internal = name.substring(0, name.length() - ".class".length());
                     if (engine.isBlocked(internal)) {
                         report.blockType(internal);

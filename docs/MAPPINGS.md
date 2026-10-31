@@ -1,11 +1,11 @@
-# Mappings: how a Forge 1.21.1 name becomes a NeoForge 21.1 name
+# Mappings: how a Forge 1.20.1 name becomes a NeoForge 21.1 name
 
 ForgeBridge translates three different things, and they live in three different places:
 
 | What | Where | Shape |
 | --- | --- | --- |
 | Names (classes, packages, members) | `dev.forgebridge.remap.MappingTable` | prefix rules + exact class rules + member rules |
-| Call sites whose *signature* changed | `dev.forgebridge.remap.RedirectTable` | `GETSTATIC ForgeRegistries.X` → `INVOKESTATIC RegistryAccess.x()` |
+| Call sites whose *signature* changed | `dev.forgebridge.remap.RedirectTable` | `GETSTATIC ForgeRegistries.X` → `INVOKESTATIC RegistryAccess.x()`, `stack.getTag()` → `ItemStackNbtBridge.getTag(stack)` |
 | Types NeoForge deleted outright | `dev.forgebridge.api.placeholder.PlaceholderLibrary` | generated stub class per removed type |
 
 All three are applied in one pass (`ClassRemapEngine.remap`), so a class is parsed and written
@@ -53,6 +53,11 @@ longer exists in that shape. Those are rewritten into calls to the bridge:
 | `GETSTATIC ForgeRegistries.ITEMS` (and 13 other registry fields) | `INVOKESTATIC RegistryAccess.items()` + `CHECKCAST LegacyRegistry` |
 | `DeferredRegister.create(ResourceLocation, String)` | `INVOKESTATIC DeferredRegisterBridge.create(...)` |
 | `DeferredRegister.create(Registry, String)` | `INVOKESTATIC DeferredRegisterBridge.create(...)` |
+| `ItemStack.getTag()` / `hasTag()` | `INVOKESTATIC ItemStackNbtBridge.getTag/hasTag(stack)` |
+| `ItemStack.getOrCreateTag()` / `getTagElement(String)` / `getOrCreateTagElement(String)` | `INVOKESTATIC ItemStackNbtBridge.*` (receiver becomes argument 0) |
+| `ItemStack.setTag(CompoundTag)` / `removeTagKey(String)` | `INVOKESTATIC ItemStackNbtBridge.setTag/removeTagKey` |
+| `new ResourceLocation(String)` | `INVOKESTATIC LegacyResourceLocations.parse(String)` |
+| `new ResourceLocation(String, String)` | `INVOKESTATIC LegacyResourceLocations.fromNamespaceAndPath(...)` |
 
 A field rule stores the accessor's *return type*, so the emitted descriptor is synthesised
 (`()T` for a read, `(T)V` for a write) and a `CHECKCAST` is emitted whenever the declared type
@@ -64,6 +69,28 @@ a method descriptor and fails.
 `ReflectiveLegacyRegistry`, and caches it. When the game is not running (CLI, tests) it returns a
 `NullLegacyRegistry` that logs every access instead of throwing, so a translation pass never
 needs a Minecraft installation.
+
+### 2a. Instruction shapes the redirector can and cannot rewrite
+
+Two rule kinds exist for calls that are not a simple one-to-one rename:
+
+* **`VIRTUAL`** — the 1.20.1 receiver is turned into argument 0 of a static shim
+  (`stack.getOrCreateTag()` becomes `ItemStackNbtBridge.getOrCreateTag(stack)`). The shim
+  descriptor erases `Lnet/minecraft/...;` types to `Ljava/lang/Object;`, and the transformer
+  appends a `CHECKCAST` to the declared type so the surrounding code still verifies. Erasing is
+  unavoidable: the shim class must load even when the Minecraft class it mentions is not on the
+  translator's class path.
+* **`CONSTRUCTOR`** — a constructor call becomes a factory call, which means the allocation
+  sequence has to change, not just the call. The redirector buffers the `NEW` + `DUP` + argument
+  push + `INVOKESPECIAL` run and, when the run is resolved, emits the factory call followed by a
+  `CHECKCAST` to the constructed type, dropping the `NEW` and `DUP`.
+
+The buffering is deliberately pessimistic. A label, a frame, a jump, a try-catch block, a
+`visitMaxs` or the end of a method flushes the buffer **unchanged** and records the redirect as
+*unapplied*; `JarPatcher` then warns about it in the patch report and `forgebridge remap-jar`
+prints it. That is the difference between "this mod was translated and something might be subtly
+wrong" and "this call site was left exactly as it was written, and here it is". A rewrite is only
+performed when the allocation and the constructor call are provably adjacent on every path.
 
 ## 3. Placeholders (`PlaceholderLibrary`)
 
@@ -124,7 +151,26 @@ for reflection, and guessing at a class name in a string is how a translator bre
 behaviour without a stack trace. The one benign exception is `net/minecraftforge/eventbus/api/Event`,
 which native NeoForge mods legitimately still name.
 
-## 6. Keeping the table honest
+## 6. Cross-version NBT emulation
+
+`ItemStack` NBT is the one 1.20.1 API that has no renamed equivalent: 1.20.5 replaced item NBT
+with data components, so `getTag`/`getOrCreateTag` do not exist in any shape on 1.21.1. The
+redirects above point at `dev.forgebridge.compat.nbt.ItemStackNbtBridge`, which stores the tag in
+the `custom_data` component when the game is present, and in a weak map when it is not:
+
+| Situation | Store | Read semantics |
+| --- | --- | --- |
+| `DataComponents.CUSTOM_DATA` resolves (game, or a stub class path) | `CustomDataTagStore` | a copy, because components are immutable |
+| otherwise (CLI, offline tests) | `ShadowTagStore` | the live tag, like Forge |
+
+Because the copying store hands out snapshots, mutation of a handed-out tag
+(`getOrCreateTag().putString(...)`) would be lost. The bridge therefore remembers every tag it
+handed out and writes it back from `flushDirty()`, which `NbtTickBridge` attaches to the server
+and client tick events. Mutations are durable within one tick — a window no player can observe —
+and immediately on `setTag`. That compromise is documented in `docs/LIMITATIONS.md`; it is a
+consequence of components being values, not something the bridge can wish away.
+
+## 7. Keeping the table honest
 
 `MappingTests` asserts the table from both directions: every legacy registry field must have a
 redirect whose target method exists on `RegistryAccess`, every prefix must beat the catch-all,

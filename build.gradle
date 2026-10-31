@@ -104,10 +104,11 @@ tasks.named('jar', Jar).configure {
                 'Implementation-Title'    : project.name,
                 'Implementation-Version'  : project.jar.archiveVersion,
                 'Implementation-Vendor'   : mod_authors,
+                'Main-Class'              : 'dev.forgebridge.cli.BridgeCli',
                 'FMLModType'              : 'MOD',
                 // Advertised so launch-time tooling can spot the bridge without parsing mods.toml.
                 'ForgeBridge-Version'     : mod_version,
-                'ForgeBridge-MappingSet'  : 'forge-1.21.1->neoforge-21.1.176',
+                'ForgeBridge-MappingSet'  : 'forge-1.20.1->neoforge-21.1',
                 'Enable-Native-Access'    : 'ALL-UNNAMED'
         ])
     }

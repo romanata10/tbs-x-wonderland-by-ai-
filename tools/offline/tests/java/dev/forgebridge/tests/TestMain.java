@@ -23,6 +23,7 @@ public final class TestMain {
             EventTests.class,
             RegistryTests.class,
             CompatTests.class,
+            CrossVersionTests.class,
             CliTests.class
     };
 

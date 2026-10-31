@@ -26,6 +26,16 @@ public class RegistryEvent {
         return registryName;
     }
 
+    /**
+     * Forge 1.20.1 shape: {@code getRegistryName()} returned a {@code ResourceLocation}.
+     * Inside a game that is exactly what is returned; outside one (CLI, tests) the id string is
+     * returned instead, which keeps {@code toString()} working in both cases.
+     */
+    public Object getRegistryName() {
+        Object parsed = dev.forgebridge.compat.LegacyResourceLocations.parse(registryName);
+        return parsed == null ? registryName : parsed;
+    }
+
     /** Forge shape: {@code RegistryEvent.Register<T>} with {@code getRegistry()}. */
     public static class Register<T> extends RegistryEvent {
 
@@ -47,6 +57,28 @@ public class RegistryEvent {
 
         public NewRegistry(String registryName) {
             super(registryName);
+        }
+
+        /**
+         * Forge 1.20.1 let a mod create a registry here ({@code createRegistry(...)} returned a
+         * {@code RegistryBuilder}). NeoForge 1.21.1 has no per-mod registry creation: registries
+         * are declared by the loader or by a data pack.
+         *
+         * <p>The call is therefore recorded and reported instead of pretending to succeed, and
+         * {@code null} is returned. A mod that null-checks will skip its registrations; one that
+         * does not will fail with a clear {@code NullPointerException} at the call site rather
+         * than a mystery inside the registry system.</p>
+         */
+        public Object createRegistry(Object registryKey) {
+            String id = getRegistryNameString();
+            if (registryKey != null) {
+                String resolved = RegistryBridge.registryIdOf(registryKey);
+                if (resolved != null) {
+                    id = resolved;
+                }
+            }
+            RegistryLifecycleBridge.acknowledgeCustomRegistry(id);
+            return null;
         }
     }
 }

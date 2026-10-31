@@ -35,7 +35,7 @@ implements, and are not part of the jar — the same relationship `compileOnly` 
 does not extend `Comparable` (Janino has no interface default methods). Neither difference is
 reachable from the bridge's runtime behaviour.
 
-## What the suite covers (76 tests, 9 suites)
+## What the suite covers (87 tests, 10 suites)
 
 | Suite | Subjects |
 | --- | --- |
@@ -46,7 +46,8 @@ reachable from the bridge's runtime behaviour.
 | `PlaceholderTests` | the generated classes are *loaded and invoked*: marker field, `get()`, `toString()`, class file version 65 |
 | `EventTests` | NeoForge vs legacy listener split, priority ordering, reflective annotation reading, no-bus safety |
 | `RegistryTests` | 15 registry keys, null-registry behaviour outside the game, cache lifecycle, the registration queue, `DeferredRegisterBridge` failure paths |
-| `CompatTests` | default config generation, config parsing, mod detection by file name, aliases/shared tags, the compatibility profiles, generated data pack |
+| `CompatTests` | default config generation, config parsing (including `nbtBridge`), mod detection by file name, aliases/shared tags, the compatibility profiles, generated data pack |
+| `CrossVersionTests` | the 1.20.1→1.21.1 layer: `ItemStack` NBT accessors and `ResourceLocation` constructors rewritten into bridge calls, the "cannot prove it, so report it" path, the NBT emulation (shadow store round trip, copied tags written back on flush), the registry lifecycle bridge through a recording `Registrar` (deferred register, namespace stripping, fallback, custom-registry refusal) |
 | `CliTests` | every CLI command, exit codes, dry run, `prepare` on a real directory |
 
 Everything runs headless: no Minecraft, no NeoForge, no network. The suite creates its synthetic
@@ -81,6 +82,29 @@ invisible to a compiler:
 7. **`PatchOptions.dryRun` was ignored** by the jar patcher, so a dry run wrote a real output jar.
 8. **`-Dforgebridge.asmLevel`, `disableEventBridge`, `disableRegistryBridge` were declared but
    never honoured.** They are wired now (and are documented in `docs/DEPLOYMENT.md`).
+
+## The cross-version layer in particular
+
+`CrossVersionTests` is the suite that was added when the target changed from "Forge 1.21.1 mods"
+to "Forge **1.20.1** mods". It asserts three separate things, and it is worth being precise about
+what each one buys:
+
+| Assertion | What it proves | What it does not |
+| --- | --- | --- |
+| `getOrCreateTag()` becomes `INVOKESTATIC ItemStackNbtBridge.getOrCreateTag` with a trailing `CHECKCAST` | the instruction layer rewrites the call site and keeps the stack types verifiable | that the shim works against a real `ItemStack` |
+| `new ResourceLocation(String)` becomes `LegacyResourceLocations.parse` with the `NEW`/`DUP` dropped | allocation and constructor were recognised as one unit | that 1.21.1's `parse` exists under that exact signature (checked reflectively at runtime, not here) |
+| a construction split by a branch is replayed untouched **and** reported | the redirector refuses what it cannot prove, loudly | that the reported case still *works*: it does not, the call site keeps calling the removed constructor |
+
+The NBT tests drive the emulation through `ItemStackNbtBridge.TagStoreFactory`, so the copying
+behaviour of a data component is reproduced faithfully (a `CopyingStore` that hands out copies)
+without needing `CompoundTag` on the class path. The registry tests drive
+`RegistryLifecycleBridge.Registrar`, so the DeferredRegister path and the `RegisterEvent` fallback
+are both exercised without NeoForge.
+
+What remains genuinely unverified offline: whether `DataComponents.CUSTOM_DATA` is reachable under
+that exact name, whether `DeferredRegister.create` accepts the registry key the bridge builds, and
+whether the tick events the NBT flush subscribes to are named as assumed. All three are resolved
+reflectively and degrade to a logged warning, but "degrades" is not "works".
 
 ## Limits of this verification
 

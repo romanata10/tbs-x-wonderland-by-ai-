@@ -117,6 +117,32 @@ public final class Fixtures {
             + "    ordering=\"NONE\"\n"
             + "    side=\"BOTH\"\n";
 
+    /** The same mod as {@link #FORGE_MODS_TOML}, but written for Forge 1.20.1. */
+    public static final String FORGE_120_MODS_TOML =
+            "modLoader=\"javafml\"\n"
+            + "loaderVersion=\"[47,)\"\n"
+            + "license=\"MIT\"\n"
+            + "\n"
+            + "[[mods]]\n"
+            + "    modId=\"examplemod\"\n"
+            + "    version=\"1.2.3\"\n"
+            + "    displayName=\"Example Legacy Mod\"\n"
+            + "    description=\"A mod written for Forge 1.20.1.\"\n"
+            + "\n"
+            + "[[dependencies.examplemod]]\n"
+            + "    modId=\"forge\"\n"
+            + "    type=\"required\"\n"
+            + "    versionRange=\"[47.1.0,)\"\n"
+            + "    ordering=\"NONE\"\n"
+            + "    side=\"BOTH\"\n"
+            + "\n"
+            + "[[dependencies.examplemod]]\n"
+            + "    modId=\"minecraft\"\n"
+            + "    type=\"required\"\n"
+            + "    versionRange=\"[1.20.1,1.21)\"\n"
+            + "    ordering=\"NONE\"\n"
+            + "    side=\"BOTH\"\n";
+
     public static final String MIXIN_CONFIG =
             "{\n"
             + "  \"required\": true,\n"

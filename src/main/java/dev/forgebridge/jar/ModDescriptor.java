@@ -94,8 +94,8 @@ public final class ModDescriptor {
     }
 
     /**
-     * A 1.21.1 Forge descriptor is recognisable by its {@code forge} dependency or by a
-     * 47.x loader version (FML 47 is the Forge 1.21.1 line; NeoForge uses FML 4.x).
+     * A Forge descriptor is recognisable by its {@code forge} dependency or by a 4x loader
+     * version (FML 47 is the Forge 1.20.1 line, 52 the 1.21.1 line; NeoForge uses FML 4.x).
      */
     public boolean looksLikeForge() {
         if (dependsOnForge()) {
@@ -103,6 +103,63 @@ public final class ModDescriptor {
         }
         int major = firstVersionNumber(loaderVersion);
         return major >= 40;
+    }
+
+    /**
+     * The first dotted version token of a range: {@code [1.20.1,1.21)} gives {@code 1.20.1}.
+     *
+     * @return {@code null} when the range has no version in it
+     */
+    public static String firstVersionToken(String range) {
+        if (range == null) {
+            return null;
+        }
+        int start = -1;
+        for (int i = 0; i < range.length(); i++) {
+            char c = range.charAt(i);
+            boolean versionChar = Character.isDigit(c) || c == '.';
+            if (versionChar) {
+                if (start < 0) {
+                    start = i;
+                }
+            } else if (start >= 0) {
+                break;
+            }
+        }
+        if (start < 0) {
+            return null;
+        }
+        int end = start;
+        while (end < range.length()) {
+            char c = range.charAt(end);
+            if (!Character.isDigit(c) && c != '.') {
+                break;
+            }
+            end++;
+        }
+        String token = range.substring(start, end);
+        // A trailing dot is punctuation, not part of the version.
+        while (token.endsWith(".")) {
+            token = token.substring(0, token.length() - 1);
+        }
+        return token.isEmpty() ? null : token;
+    }
+
+    /**
+     * The first two components of a version: {@code 1.20.1} gives {@code 1.20}. Two Minecraft
+     * ranges with the same major.minor describe the same game line, so a range does not need to
+     * be rewritten when only the patch number differs.
+     */
+    public static String versionLine(String version) {
+        if (version == null) {
+            return null;
+        }
+        int firstDot = version.indexOf('.');
+        if (firstDot < 0) {
+            return version;
+        }
+        int secondDot = version.indexOf('.', firstDot + 1);
+        return secondDot < 0 ? version : version.substring(0, secondDot);
     }
 
     /** Extracts the leading version number of a range such as {@code [47,1.22)}, or -1. */

@@ -138,7 +138,8 @@ def package_jar(version, classes_dir, jar_path):
         "Implementation-Title: forgebridge\r\n"
         "Implementation-Version: " + version + "\r\n"
         "ForgeBridge-Version: " + version + "\r\n"
-        "ForgeBridge-MappingSet: forge-1.21.1->neoforge-21.1.176\r\n"
+        "Main-Class: dev.forgebridge.cli.BridgeCli\r\n"
+        "ForgeBridge-MappingSet: forge-1.20.1->neoforge-21.1\r\n"
         "FMLModType: MOD\r\n"
         "\r\n"
     ).encode("utf-8")

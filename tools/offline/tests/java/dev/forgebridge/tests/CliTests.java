@@ -48,7 +48,7 @@ public final class CliTests {
     public static void testInfoDescribesTheMappingSet() {
         String output = run("info");
         Assert.contains(output, "ForgeBridge", "product name");
-        Assert.contains(output, "forge-1.21.1->neoforge-21.1.176", "mapping set");
+        Assert.contains(output, "forge-1.20.1->neoforge-21.1", "mapping set");
         Assert.contains(output, "pipeline", "pipeline reported");
         Assert.contains(output, "registry keys", "registry keys listed");
         Assert.contains(output, "items", "registry key names");

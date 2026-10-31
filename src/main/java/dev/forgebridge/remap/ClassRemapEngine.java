@@ -21,15 +21,17 @@ public final class ClassRemapEngine {
         private final AsmSupport.Level level;
         private final List<String> appliedRedirects;
         private final List<String> residualReferences;
+        private final List<String> unappliedRedirects;
         private final String error;
 
         Result(byte[] bytes, boolean changed, AsmSupport.Level level, List<String> appliedRedirects,
-               List<String> residualReferences, String error) {
+               List<String> residualReferences, List<String> unappliedRedirects, String error) {
             this.bytes = bytes;
             this.changed = changed;
             this.level = level;
             this.appliedRedirects = appliedRedirects;
             this.residualReferences = residualReferences;
+            this.unappliedRedirects = unappliedRedirects;
             this.error = error;
         }
 
@@ -51,6 +53,14 @@ public final class ClassRemapEngine {
 
         public List<String> getResidualReferences() {
             return residualReferences;
+        }
+
+        /**
+         * Call sites that matched a redirect rule but could not be rewritten without guessing
+         * (an ambiguous {@code new} pattern). They are reported rather than dropped.
+         */
+        public List<String> getUnappliedRedirects() {
+            return unappliedRedirects;
         }
 
         public String getError() {
@@ -79,12 +89,13 @@ public final class ClassRemapEngine {
     public Result remap(byte[] input) {
         AsmSupport.Level level = AsmSupport.level();
         List<String> applied = new ArrayList<String>();
+        List<String> unapplied = new ArrayList<String>();
         byte[] output;
         try {
             if (level == AsmSupport.Level.FULL) {
-                output = AsmRemapPipeline.fullRemap(input, table, redirects, applied);
+                output = AsmRemapPipeline.fullRemap(input, table, redirects, applied, unapplied);
             } else if (level == AsmSupport.Level.CORE) {
-                byte[] redirected = AsmRemapPipeline.redirectOnly(input, redirects, applied);
+                byte[] redirected = AsmRemapPipeline.redirectOnly(input, redirects, applied, unapplied);
                 output = ConstantPoolRemapper.remap(redirected, rawReplacements);
             } else {
                 output = ConstantPoolRemapper.remap(input, rawReplacements);
@@ -92,13 +103,12 @@ public final class ClassRemapEngine {
         } catch (Throwable error) {
             // A single unparseable class must never abort a whole jar.
             BridgeLog.debug("Remap failed, keeping original bytes: " + error);
-            error.printStackTrace();
             return new Result(input, false, level, applied, ReferenceAudit.findLegacyReferences(input),
-                    error.getClass().getSimpleName() + ": " + error.getMessage());
+                    new ArrayList<String>(), error.getClass().getSimpleName() + ": " + error.getMessage());
         }
         List<String> residual = ReferenceAudit.findLegacyReferences(output);
         boolean changed = output.length != input.length || !java.util.Arrays.equals(output, input);
-        return new Result(output, changed, level, applied, residual, null);
+        return new Result(output, changed, level, applied, residual, unapplied, null);
     }
 
     /** Maps a binary class name such as {@code net.minecraftforge.fml.common.Mod}. */

@@ -1,7 +1,7 @@
 # Limitations
 
 A translator is only honest if it says where it stops. Each item below is a real constraint of
-the Forge 1.21.1 → NeoForge 21.1 move, not a TODO; where the bridge does something partial, the
+the Forge 1.20.1 → NeoForge 21.1 move, not a TODO; where the bridge does something partial, the
 partial behaviour is described.
 
 ## 1. APIs NeoForge deleted have no equivalent
@@ -19,6 +19,10 @@ explains itself when used (`toString()`, plus a one-time stderr warning):
 | `network/simple/SimpleChannel` | class with static `get()` | payload networking (`PayloadRegistrar`) |
 | `network/NetworkRegistry` | class with static `get()` | `RegisterPayloadHandlersEvent` |
 | `network/NetworkDirection` | empty class | removed with the simple channel API |
+| `common/capabilities/CapabilityProvider` | class with static `get()` | `RegisterCapabilitiesEvent` + token lookups |
+| `common/capabilities/ICapabilitySerializable` | empty interface | removed with the capability rewrite |
+| `registries/RegistryBuilder` | class with static `get()` | `NewRegistryEvent` and data-driven registry keys |
+| `registries/ObjectHolder` | annotation with no elements | removed; the loader that injected the field is gone |
 
 A placeholder makes the call site *run*, not *work*. Code that registers a channel or a
 capability through those types logs a diagnostic and does nothing. Porting that part by hand is
@@ -33,6 +37,32 @@ fails far from its cause. If a mod reflects on Forge classes, its source has to 
 
 The same applies to the raw fallback pipeline (`NONE`), which only understands slash-form names:
 dot-form strings survive it by definition.
+
+### 1a. Item NBT lives in `custom_data` now
+
+1.20.5 replaced item NBT with data components, so `ItemStack.getTag()` and its family do not
+exist in 1.21.1 in any shape. The bridge emulates them (`dev.forgebridge.compat.nbt`):
+
+* a tag is stored in the `custom_data` component, or in a weak map when no game is present;
+* a component is an immutable value, so reading it yields a **copy**. Forge handed out the live
+  tag, and mods mutate it in place (`getOrCreateTag().putString(...)`), which a copy would silently
+  swallow. The bridge remembers what it handed out and writes it back once per tick
+  (`NbtTickBridge`), which means a mutation is visible to other readers after at most one tick.
+
+What this cannot fix:
+
+* a second `ItemStack` that was copied/serialised **between** the mutation and the flush sees the
+  old data (the flush uses the stack object as identity, and a copied stack is a different
+  object);
+* `setTag` on a stack that shares its `custom_data` value with another stack writes a new
+  component for the first one only, exactly as a value type would;
+* a mod that keeps a reference to a tag it obtained once and mutates it much later still works,
+  but only through the next flush — not synchronously;
+* NBT size limits differ: `custom_data` is capped by the component codec like any other component,
+  so a mod that used item NBT as unbounded storage can exceed it.
+
+Disabling `nbtBridge` in the config leaves the bytecode redirects in place and turns the periodic
+flush off, which makes the one-tick window unbounded; it exists for debugging, not for play.
 
 ## 3. Mixins
 
@@ -66,6 +96,15 @@ discovered from the *launch* class path. If a launcher hides it, use `prepare` o
   game.
 * Registration ordering is NeoForge's, not Forge's. A mod that depended on Forge's
   `RegistryEvent.Register` firing before another mod's must not assume the old order.
+* Forge's registry lifecycle is translated, not recreated: `RegistryLifecycleBridge` replays
+  `RegistryEvent.Register` to legacy listeners and then flushes everything that was queued
+  through a NeoForge `DeferredRegister` (falling back to `RegisterEvent.register`). Objects a mod
+  registered through `IForgeRegistry.register` therefore appear in the registry, but they are
+  created at flush time, not at the moment the mod asked for it.
+* `RegistryEvent.NewRegistry` (a mod creating its own registry) has **no** translation. The
+  attempt is recorded, reported, and `createRegistry(...)` returns `null`. 1.21.1 builds custom
+  registries from a data pack definition; a translated mod's entries for such a registry are not
+  registered. This is a hard stop, not a partial success.
 
 ## 6. Events
 
@@ -96,11 +135,22 @@ vanilla members keeps working. An AT naming a Forge member does not.
 
 ## 9. Version scope
 
-The table describes exactly one move: **Forge 1.21.1 → NeoForge 21.1.176** (mapping set
-`forge-1.21.1->neoforge-21.1.176`). It is not a general Forge→NeoForge translator: 1.20.x mods
-would first need the 1.20 → 1.21 vanilla changes, which are out of scope. `BridgeConstants`
-and `BuiltinMappings.TABLE_VERSION` carry the scope so a report can never be mistaken for
-another.
+The table describes exactly one move: **Forge 1.20.1 → NeoForge 21.1.176** (mapping set
+`forge-1.20.1->neoforge-21.1`). Within that move the bridge covers the loader/API layer, the
+registry lifecycle and item NBT. It does **not** cover structural vanilla changes between
+Minecraft 1.20.1 and 1.21.1 that a mod touches directly:
+
+* worldgen / biome JSON schema changes, and datapack format bumps (the bridge rewrites the
+  `pack_format` it finds, nothing else);
+* block-entity and entity data `CompoundTag` layouts written with `save`/`load` overrides;
+* recipe and loot-table codec changes;
+* client rendering changes (`BlockEntityRenderer` signatures, `GuiGraphics` renames that the
+  mapping set does not know about);
+* anything a 1.20.1 mod does with `ResourceLocation` *identity* (the factories return the modern
+  type, so `==` comparisons remain as wrong as they were on 1.21.1).
+
+`BridgeConstants` and `BuiltinMappings.TABLE_VERSION` carry the scope so a report can never be
+mistaken for another.
 
 ## 10. What the bridge deliberately does not do
 

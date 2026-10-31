@@ -65,6 +65,11 @@ public final class TomlTests {
         Assert.equalInt(1, ModDescriptor.firstVersionNumber("[1.21,1.22)"), "minecraft bound");
         Assert.equalInt(-1, ModDescriptor.firstVersionNumber(""), "empty range");
         Assert.equalInt(-1, ModDescriptor.firstVersionNumber((String) null), "null range");
+        Assert.equal("1.20.1", ModDescriptor.firstVersionToken("[1.20.1,1.21)"), "first version token");
+        Assert.equal("47.1.0", ModDescriptor.firstVersionToken("[47.1.0,)"), "version token");
+        Assert.isNull(ModDescriptor.firstVersionToken("no versions here"), "no token");
+        Assert.equal("1.20", ModDescriptor.versionLine("1.20.1"), "version line drops the patch level");
+        Assert.equal("craft", ModDescriptor.versionLine("craft"), "unversioned input is returned as is");
     }
 
     public static void testRewriteMovesTheDescriptorToNeoForge() {
@@ -83,6 +88,28 @@ public final class TomlTests {
         Assert.contains(text, "modId=\"forgebridge\"", "optional bridge dependency added");
         Assert.contains(text, "type=\"optional\"", "bridge dependency is optional");
         Assert.contains(text, "displayName=\"Example Legacy Mod\"", "metadata preserved");
+    }
+
+    public static void testRewriteMovesA1201DescriptorToTwentyOne() {
+        PatchOptions options = options().setMinecraftVersionRange("[1.21.1,1.22)");
+        ModsTomlRewriter.Result result = ModsTomlRewriter.rewrite(Fixtures.FORGE_120_MODS_TOML, options);
+        Assert.isTrue(result.isChanged(), "descriptor changed");
+        Assert.isTrue(result.isLegacyForge(), "1.20.1 descriptor detected as legacy");
+        String text = result.getText();
+        Assert.contains(text, "loaderVersion=\"[4,)\"", "FML 47 line moved to FML 4");
+        Assert.notContains(text, "loaderVersion=\"[47,)\"", "old loader version gone");
+        Assert.contains(text, "modId=\"neoforge\"", "forge dependency renamed");
+        Assert.contains(text, "versionRange=\"[21.1.0,)\"", "neoforge range");
+        Assert.contains(text, "versionRange=\"[1.21.1,1.22)\"", "1.20 minecraft range widened");
+        Assert.notContains(text, "[1.20.1,1.21)", "the 1.20 game range is gone");
+        Assert.contains(text, "modId=\"forgebridge\"", "bridge dependency added");
+    }
+
+    public static void testRewriteKeepsA121MinecraftRangeUntouched() {
+        PatchOptions options = options().setMinecraftVersionRange("[1.21.1,1.22)");
+        ModsTomlRewriter.Result result = ModsTomlRewriter.rewrite(Fixtures.FORGE_MODS_TOML, options);
+        Assert.contains(result.getText(), "versionRange=\"[1.21,1.22)\"",
+                "the same game line is not rewritten just to add a patch number");
     }
 
     public static void testRewriteAddsAMissingLicense() {

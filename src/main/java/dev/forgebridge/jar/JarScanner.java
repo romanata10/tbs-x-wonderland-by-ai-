@@ -18,7 +18,7 @@ import java.util.zip.ZipFile;
  * Read-only inspection of a mod jar: is it a Forge (legacy) mod, and what does it contain?
  *
  * <p>Deliberately conservative. A jar counts as legacy when its descriptor looks like
- * Forge 1.21.1 <em>or</em> when any class references {@code net/minecraftforge}. The second
+ * Forge 1.20.1/1.21.1 <em>or</em> when any class references {@code net/minecraftforge}. The second
  * condition catches mods that ship a NeoForge-agnostic descriptor but call into Forge APIs
  * anyway (common in multi-loader source sets that got the descriptor wrong).</p>
  */

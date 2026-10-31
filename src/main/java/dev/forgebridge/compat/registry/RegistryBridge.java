@@ -1,5 +1,6 @@
 package dev.forgebridge.compat.registry;
 
+import dev.forgebridge.BridgeConstants;
 import dev.forgebridge.events.ConsumerProxy;
 import dev.forgebridge.events.LegacyDispatcher;
 import dev.forgebridge.util.BridgeLog;
@@ -63,14 +64,17 @@ public final class RegistryBridge {
                     eventType, consumer);
         }
         installed = true;
+        // The lifecycle bridge needs the same bus: it turns queued 1.20.1 registrations into
+        // DeferredRegister entries and attaches them here.
+        RegistryLifecycleBridge.install(modEventBus, BridgeConstants.MOD_ID);
         BridgeLog.info("Registry bridge attached to the mod event bus");
         return true;
     }
 
     /** Called for every NeoForge RegisterEvent. */
-    public static void onRegisterEvent(Object event) {
+    public static void onRegisterEvent(final Object event) {
         eventsSeen++;
-        Object registryKey = SafeReflect.invoke(event, "getRegistryKey");
+        final Object registryKey = SafeReflect.invoke(event, "getRegistryKey");
         String registryId = registryIdOf(registryKey);
         if (registryId == null) {
             BridgeLog.warn("RegisterEvent without a resolvable registry key; ignoring");
@@ -81,35 +85,28 @@ public final class RegistryBridge {
                 ? new NullLegacyRegistry(registryId)
                 : RegistryAccess.resolve(bridgeKey);
 
+        // 1.20.1 shape first: mods that register imperatively get their Register event.
         RegistryEvent.Register<Object> synthetic = new RegistryEvent.Register<Object>(registryId, legacyRegistry);
         int listeners = LegacyDispatcher.post(synthetic);
         BridgeLog.debug("RegistryEvent.Register for " + registryId + " reached " + listeners + " legacy listener(s)");
 
-        registrationsFlushed += flush(event, registryKey, registryId);
+        // Then everything that was queued (imperative registrations and deferred entries alike)
+        // is flushed: through a DeferredRegister when NeoForge allows it, through the event
+        // itself otherwise.
+        RegistryLifecycleBridge.PendingRegistration fallback = new RegistryLifecycleBridge.PendingRegistration() {
+            public boolean register(LegacyRegistryQueue.Pending entry) {
+                Object key = createResourceKey(registryKey, entry.getId());
+                Object value = entry.getSupplier() == null ? null : entry.getSupplier().get();
+                if (key == null || value == null) {
+                    return false;
+                }
+                return registerDirectly(event, key, value);
+            }
+        };
+        registrationsFlushed += RegistryLifecycleBridge.flushLegacyRegistrations(registryId, fallback);
     }
 
-    private static int flush(Object event, Object registryKey, String registryId) {
-        List<LegacyRegistryQueue.Pending> pending = LegacyRegistryQueue.drain(registryId);
-        int flushed = 0;
-        for (int i = 0; i < pending.size(); i++) {
-            LegacyRegistryQueue.Pending entry = (LegacyRegistryQueue.Pending) pending.get(i);
-            Object resourceLocation = entry.getId();
-            if (resourceLocation == null) {
-                continue;
-            }
-            Object key = createResourceKey(registryKey, resourceLocation);
-            Object value = entry.getSupplier() == null ? null : entry.getSupplier().get();
-            if (key == null || value == null) {
-                continue;
-            }
-            if (register(event, key, value)) {
-                flushed++;
-            }
-        }
-        return flushed;
-    }
-
-    private static boolean register(Object event, Object key, Object value) {
+    private static boolean registerDirectly(Object event, Object key, Object value) {
         final Object captured = value;
         Supplier<Object> supplier = new Supplier<Object>() {
             public Object get() {

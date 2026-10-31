@@ -6,7 +6,7 @@ public final class BridgeConstants {
     public static final String MOD_ID = "forgebridge";
     public static final String LOG_NAME = "ForgeBridge";
     public static final String VERSION = "1.0.0";
-    public static final String MAPPING_SET = "forge-1.21.1->neoforge-21.1.176";
+    public static final String MAPPING_SET = "forge-1.20.1->neoforge-21.1";
 
     /** The two mods the bridge carries explicit compatibility profiles for. */
     public static final String MOD_WONDERLAND = "wonderland";

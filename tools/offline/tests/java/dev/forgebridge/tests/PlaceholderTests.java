@@ -27,7 +27,7 @@ public final class PlaceholderTests {
 
     public static void testDefaultLibraryCoversTheRemovedApis() {
         PlaceholderLibrary library = PlaceholderLibrary.defaultLibrary();
-        Assert.equalInt(8, library.size(), "placeholder count");
+        Assert.isTrue(library.size() >= 12, "placeholder count covers the removed APIs");
         PlaceholderLibrary.Placeholder modLoading = library.get("net/minecraftforge/fml/ModLoadingContext");
         Assert.notNull(modLoading, "ModLoadingContext placeholder");
         Assert.equal("dev/forgebridge/placeholders/fml/ModLoadingContext",
@@ -36,6 +36,15 @@ public final class PlaceholderTests {
         PlaceholderLibrary.Placeholder capability =
                 library.get("net/minecraftforge/common/capabilities/ICapabilityProvider");
         Assert.notNull(capability, "ICapabilityProvider placeholder");
+        Assert.notNull(library.get("net/minecraftforge/common/capabilities/CapabilityProvider"),
+                "CapabilityProvider placeholder");
+        Assert.notNull(library.get("net/minecraftforge/registries/RegistryBuilder"),
+                "RegistryBuilder placeholder");
+        PlaceholderLibrary.Placeholder objectHolder =
+                library.get("net/minecraftforge/registries/ObjectHolder");
+        Assert.notNull(objectHolder, "ObjectHolder annotation placeholder");
+        Assert.contains(objectHolder.getMessage(), "empty annotation",
+                "the annotation stub admits it does nothing");
     }
 
     public static void testEveryGeneratedClassParsesAsBytecode() {
@@ -112,6 +121,7 @@ public final class PlaceholderTests {
         Assert.contains(description, "ModLoadingContext -> dev/forgebridge/placeholders/fml/ModLoadingContext",
                 "describe output");
         List<PlaceholderLibrary.Placeholder> all = PlaceholderLibrary.defaultLibrary().all();
-        Assert.equalInt(8, all.size(), "all() returns every placeholder");
+        Assert.equalInt(PlaceholderLibrary.defaultLibrary().size(), all.size(),
+                "all() returns every placeholder");
     }
 }

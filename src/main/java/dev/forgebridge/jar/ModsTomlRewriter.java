@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Translates an FML descriptor from Forge 1.21.1 to NeoForge 21.1.
+ * Translates an FML descriptor from Forge 1.20.1 (or 1.21.1) to NeoForge 21.1.
  *
  * <p>What actually stops a Forge mod from loading on NeoForge is not the bytecode, it is
  * the descriptor: FML validates {@code loaderVersion} against its own version and resolves
@@ -13,9 +13,12 @@ import java.util.Map;
  * has to fix, in order:</p>
  *
  * <ol>
- *   <li>{@code loaderVersion="[47,)"} to {@code "[4,)"} (FML 4.x on the NeoForge side),</li>
+ *   <li>{@code loaderVersion="[47,)"} (Forge 1.20.1) or {@code "[52,)"} (1.21.1) to
+ *       {@code "[4,)"}, the FML line NeoForge 21.1 uses,</li>
  *   <li>every {@code [[dependencies.<id>]]} block whose {@code modId} is {@code forge},</li>
- *   <li>the matching {@code versionRange} (47.x/1.21.1 to 21.1.x),</li>
+ *   <li>the matching {@code versionRange} (47.x / 52.x to 21.1.x),</li>
+ *   <li>a {@code minecraft} dependency that still names 1.20.x, which FML would otherwise read
+ *       as "this mod is not for this game",</li>
  *   <li>a missing {@code license}, which FML 4 refuses to load without.</li>
  * </ol>
  */
@@ -99,6 +102,30 @@ public final class ModsTomlRewriter {
                         + " -> " + options.getNeoforgeDependencyRange());
                 changed = true;
             }
+        }
+
+        // 2b) the minecraft dependency. A 1.20.1 mod declares "[1.20.1,1.21)" and FML 4 on
+        // Minecraft 1.21.1 refuses to load it, before any of the bridge's code runs.
+        String targetMinecraft = ModDescriptor.versionLine(
+                ModDescriptor.firstVersionToken(options.getMinecraftVersionRange()));
+        for (int i = 0; i < dependencies.size(); i++) {
+            TomlDocument.Block block = (TomlDocument.Block) dependencies.get(i);
+            String modId = (String) block.getValues().get("modId");
+            if (modId == null || !"minecraft".equalsIgnoreCase(modId)) {
+                continue;
+            }
+            String range = (String) block.getValues().get("versionRange");
+            Integer rangeLine = block.lineOf("versionRange");
+            String declared = ModDescriptor.versionLine(ModDescriptor.firstVersionToken(range));
+            if (rangeLine == null || declared == null || targetMinecraft == null
+                    || declared.equals(targetMinecraft)) {
+                continue;
+            }
+            document.setRawLine(rangeLine.intValue(),
+                    replaceValue(document.rawLine(rangeLine.intValue()), options.getMinecraftVersionRange()));
+            changes.add("dependency " + block.getHeader() + ": minecraft " + range
+                    + " -> " + options.getMinecraftVersionRange());
+            changed = true;
         }
 
         // 3) license is mandatory for FML 4.

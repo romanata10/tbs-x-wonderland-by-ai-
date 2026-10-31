@@ -134,6 +134,7 @@ public final class Bootstrap {
         options.setBridgeVersion(BridgeConstants.VERSION);
         options.setNeoforgeDependencyRange("[21.1.0,)");
         options.setLoaderVersionRange("[4,)");
+        options.setMinecraftVersionRange("[1.21.1,1.22)");
         if (library != null) {
             options.setInjectedEntries(library.asClassEntries());
         }
@@ -180,6 +181,14 @@ public final class Bootstrap {
         if (compat.isRegistryBridge()
                 && !Boolean.getBoolean(BridgeConstants.PROP_DISABLE_REGISTRY_BRIDGE)) {
             RegistryBridge.install(modEventBus);
+            if (compat.isNbtBridge()) {
+                // NBT written through the emulated ItemStack.getTag()/getOrCreateTag() API is
+                // held in a copy of the component data, so it has to be written back on every
+                // tick as well as when the level saves.
+                dev.forgebridge.compat.nbt.NbtTickBridge.install();
+                BridgeLog.debug("NBT component emulation will flush on "
+                        + dev.forgebridge.compat.nbt.NbtTickBridge.getListenerCount() + " tick hook(s)");
+            }
         }
         if (Boolean.getBoolean(BridgeConstants.PROP_DISABLE_EVENT_BRIDGE)) {
             BridgeLog.warn("Event bridge disabled by -D" + BridgeConstants.PROP_DISABLE_EVENT_BRIDGE);
@@ -274,7 +283,7 @@ public final class Bootstrap {
     /** Small holder so the banner text does not clutter the wiring code. */
     static final class ForgeBridgeApiStatus {
         static final String BANNER =
-                "ForgeBridge " + BridgeConstants.VERSION + " - Forge 1.21.1 mods on NeoForge 21.1 ("
+                "ForgeBridge " + BridgeConstants.VERSION + " - Forge 1.20.1 mods on NeoForge 21.1 ("
                         + BuiltinMappings.TABLE_VERSION + ")";
 
         private ForgeBridgeApiStatus() {

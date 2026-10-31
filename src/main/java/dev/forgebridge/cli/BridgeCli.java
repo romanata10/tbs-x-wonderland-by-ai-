@@ -47,13 +47,35 @@ public final class BridgeCli {
         try {
             status = run(args);
         } catch (Throwable error) {
-            System.err.println("[ForgeBridge] fatal: " + error);
-            error.printStackTrace(System.err);
-            status = 2;
+            if (missingAsm(error)) {
+                System.err.println("[ForgeBridge] ASM is not on the class path.");
+                System.err.println("  Inside a NeoForge launch ModLauncher provides it; standalone runs need it:");
+                System.err.println("  java -cp forgebridge-1.0.0.jar:asm-9.jar dev.forgebridge.cli.BridgeCli <command>");
+                status = 3;
+            } else {
+                System.err.println("[ForgeBridge] fatal: " + error);
+                error.printStackTrace(System.err);
+                status = 2;
+            }
         }
         if (status != 0) {
             System.exit(status);
         }
+    }
+
+    /** True when the failure is "ASM is not on the class path" in any of its disguises. */
+    private static boolean missingAsm(Throwable error) {
+        Throwable current = error;
+        while (current != null) {
+            if (current instanceof NoClassDefFoundError || current instanceof ClassNotFoundException) {
+                String text = String.valueOf(current.getMessage());
+                if (text.indexOf("org/objectweb/asm") >= 0 || text.indexOf("org.objectweb.asm") >= 0) {
+                    return true;
+                }
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     public static int run(String[] args) {
@@ -105,7 +127,7 @@ public final class BridgeCli {
     }
 
     private static void usage() {
-        System.out.println("ForgeBridge " + BridgeConstants.VERSION + " - Forge 1.21.1 -> NeoForge 21.1 translator");
+        System.out.println("ForgeBridge " + BridgeConstants.VERSION + " - Forge 1.20.1 -> NeoForge 21.1 translator");
         System.out.println("usage:");
         System.out.println("  info                                   show the active mapping set and pipeline");
         System.out.println("  scan <jar>...                           report whether jars are legacy Forge mods");
@@ -228,6 +250,9 @@ public final class BridgeCli {
             }
             if (!result.getResidualReferences().isEmpty()) {
                 System.out.println("residual Forge references: " + result.getResidualReferences());
+            }
+            if (!result.getUnappliedRedirects().isEmpty()) {
+                System.out.println("unapplied redirects (ambiguous call sites): " + result.getUnappliedRedirects());
             }
             return 0;
         } catch (IOException error) {
