@@ -33,13 +33,14 @@ the translated bytecode links against. It is two things in one jar:
 
 ## Download
 
-Prebuilt jar: **[`dist/forgebridge-1.0.0.jar`](dist/forgebridge-1.0.0.jar)** (168 KB, 113 entries,
-`sha256 6e7f1df5efb377bdfb3bb3f999f0274c49bd784b74b071e1e4f0e27acddf4d8d`) — see the
-[v1.0.0 release](https://github.com/romanata10/tbs-x-wonderland-by-ai-/releases/tag/v1.0.0) and
-[`dist/README.md`](dist/README.md) for provenance. It is built by the offline harness, has never
-run inside a real NeoForge installation, and is published as a pre-release for that reason.
-GitHub blocked release-asset uploads from the build sandbox, so the jar is committed rather than
-attached.
+**[forgebridge-1.0.0.jar](https://github.com/romanata10/tbs-x-wonderland-by-ai-/releases/download/v1.0.0/forgebridge-1.0.0.jar)**
+— attached to the [v1.0.0 release](https://github.com/romanata10/tbs-x-wonderland-by-ai-/releases/tag/v1.0.0),
+168,328 bytes, `sha256 6e7f1df5efb377bdfb3bb3f999f0274c49bd784b74b071e1e4f0e27acddf4d8d`.
+
+The same file is committed at [`dist/forgebridge-1.0.0.jar`](dist/forgebridge-1.0.0.jar); the
+`Attach release asset` workflow uploads that copy, since the build sandbox cannot reach
+`uploads.github.com`. It is built by the offline harness and has never run inside a real NeoForge
+installation, hence the pre-release flag — see [`dist/README.md`](dist/README.md).
 
 ## Quick start
 

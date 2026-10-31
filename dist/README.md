@@ -34,9 +34,16 @@ in `docs/TESTING.md` (the `custom_data` component, `DeferredRegister.create`, th
 are unverified: each degrades to a logged warning rather than a crash. Test it on a copied instance,
 not on a world you care about.
 
-A GitHub release asset could not be uploaded from the build sandbox (`uploads.github.com` is not
-reachable); the file is committed here instead so it is still downloadable:
+## Why this copy is committed
+
+`uploads.github.com` is the only host that accepts release-asset uploads, and the build sandbox
+cannot reach it (the TLS handshake for that name is refused). The jar is therefore committed here,
+and `.github/workflows/attach-release-asset.yml` uploads it from a GitHub runner, which is not
+restricted. The asset is live:
 
 ```bash
-curl -LO https://raw.githubusercontent.com/romanata10/tbs-x-wonderland-by-ai-/<commit>/dist/forgebridge-1.0.0.jar
+curl -LO https://github.com/romanata10/tbs-x-wonderland-by-ai-/releases/download/v1.0.0/forgebridge-1.0.0.jar
 ```
+
+GitHub reports `sha256:6e7f1df5efb377bdfb3bb3f999f0274c49bd784b74b071e1e4f0e27acddf4d8d` for that
+asset, matching the checksum above
